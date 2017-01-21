@@ -1,6 +1,6 @@
 # lrange-sadd
 
-Containerized utility to scan Redis keys and hget a specified hashes field.
+Containerized Redis CLI utility to range a list into a set.
 
 <img src='https://raw.githubusercontent.com/evanx/lrange-sadd/master/docs/readme/images/options.png'>
 
@@ -9,88 +9,58 @@ Containerized utility to scan Redis keys and hget a specified hashes field.
 
 Sample data
 ```
-redis-cli lpush mylist:l err some_error
-redis-cli lpush mylist:l err other_error
+redis-cli lpush mylist:l some_error
+redis-cli lpush mylist:l other_error
 ```
-where we might have the field `err` on some hashes keys.
 
-We wish to perform a query on this specific field e.g. as follows using `bash` and `redis-cli`
+We wish to `lrange` and `sadd` to a set as follows using `bash` and `redis-cli`
 ```
-for key in `redis-cli keys 'mytest:*:h'`
+for item in `redis-cli lrange mylist:l 0 -1`
 do
-  echo $key `redis-cli hget $key err`
+  redis-cli sadd myset:s $item
 done
-```
-```
-mylist:l some_error
-mylist:l other_error
 ```
 
 ## Usage
-
-Use `format=both` to print the key and the field value:
-```
-pattern='mytest*' format=both field=err npm start
-```
-where we have specified the `err` field for the query.
-```
-mylist:l other_error
-mylist:l some_error
-```
-where the hash key and the value of its `err` field have been printed.
-
-Otherwise `format=value` will print only the field value:
-```
-pattern='mytest*' format=value field=err npm start
-```
-```
-other_error
-some_error
-```
 
 ## Config
 
 See `app/config.js`
 ```javascript
-    pattern: {
-        description: 'the matching pattern for Redis scan',
-        example: '*'
+    list: {
+        description: 'the list to lrange from',
     },
-    field: {
-        description: 'name of the hashes field to print'
+    start: {
+        description: 'the start index to lrange from',
+    },
+    stop: {
+        description: 'the stop index to lrange to',
+    },
+    set: {
+        description: 'the set to sadd into',
     },
     limit: {
-        description: 'the maximum number of keys to print',
+        description: 'the maximum number of keys to add',
         note: 'zero means unlimited',
-        default: 30
+        default: 0
     },
-    redisUrl: {
-        description: 'the Redis URL',
-        default: 'redis://localhost:6379'
-    },
-    format: {
-        description: 'the output format',
-        options: ['key', 'value', 'both', 'json'],
-        default: 'key',
+    host: {
+        description: 'the Redis host',
+        default: 'localhost'
+    }
+    port: {
+        description: 'the Redis port',
+        default: 6379
+    }
 ```
-where the default `redisUrl` is `'redis://localhost:6379'`
 
 ## Implementation
 
 See `app/index.js`
 ```javascript
-    let cursor;
-    while (true) {
-        const [result] = await multiExecAsync(client, multi => {
-            multi.scan(cursor || 0, 'match', config.pattern);
-        });
-        cursor = parseInt(result[0]);
-        const keys = result[1];
-        if (config.format === 'key') {
-            keys.forEach(key => {
-                console.log(key);
-                count++;
-            });
+    const [lrange] = await multiExecAsync(client, multi => {
+        multi.lrange(config.list, config.start, config.stop);
+    });
 ```
 
 ## Docker
@@ -98,26 +68,25 @@ See `app/index.js`
 Having audited the `Dockerfile` and code, you can build and run as follows:
 
 ```shell
-docker build -t hget https://github.com/evanx/hget.git
+docker build -t hget https://github.com/evanx/lrange-sadd.git
 ```
 where we tag the image as `hget`
 
 ```shell
-docker run --network=host -e pattern='authbot:*' -e field=role -e format=both hget
+docker run --network=host -e list=mylist -e set=myset lrange-sadd
 ```
-where `--network-host` connects the container to your `localhost` bridge. The default `redisUrl` of `redis://localhost:6379` works in that case.
+where `--network-host` connects the container to your `localhost` bridge. The default `host` and `port` are valid in that case i.e. `localhost:6379` works in that case.
 
 
 ### Prebuilt image demo
 
 ```
-evan@dijkstra:~$ docker run --network=redis \
-  -e redisUrl=redis://$redisHost:6379 \
+evan@dijkstra:~$ docker run --network=test-redis-network \
+  -e host=$host \
   -e pattern='authbot:*' -e field=role -e format=both \
-  evanxsummers/hget
+  evanxsummers/lrange-sadd
 ```
-where rather than using `--network=host` we have a Redis container with IP address `$redisHost` on a network bridge called `redis`
-
+where rather than using `--network=host` we have a Redis container with IP address `$host` on a network bridge called `test-hget-redis-network`
 
 ### Test Redis instance
 
