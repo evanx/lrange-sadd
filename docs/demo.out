@@ -1,0 +1,31 @@
++ set -u -e -x
++ docker network create -d bridge test-hget-redis-network
+d6271619d463f6e66cfbd3fc736770c179f3e03e60d365262e311a98397ac06e
++ docker run --network=test-hget-redis-network --name test-redis-hget -d tutum/redis
++ container=05a5bfe92ad8ea64c11cd3fad51b4756555944e87f9c5817a3851a8dfee3243e
++ grep ^\s*redis-cli -a
++ sed -e s/^\s*redis-cli -a \(\w*\) .*$/\1/
+docker logs 05a5bfe92ad8ea64c11cd3fad51b4756555944e87f9c5817a3851a8dfee3243e
++ redisPass=17YlGB2L1jQm95GnkClEZ4kAt72SulmV
++ docker inspect
++ grep "IPAddress":
++ tail -1
++ sed s/.*"\([0-9\.]*\)",/\1/
+ 05a5bfe92ad8ea64c11cd3fad51b4756555944e87f9c5817a3851a8dfee3243e
++ redisHost=172.20.0.2
++ redisUrl=redis://:17YlGB2L1jQm95GnkClEZ4kAt72SulmV@172.20.0.2:6379
++ redis-cli -a 17YlGB2L1jQm95GnkClEZ4kAt72SulmV -h 172.20.0.2 hset mytest:1001:h err some_error
+1
++ redis-cli -a 17YlGB2L1jQm95GnkClEZ4kAt72SulmV -h 172.20.0.2 hset mytest:1002:h err other_error
+1
++ redis-cli -a 17YlGB2L1jQm95GnkClEZ4kAt72SulmV -h 172.20.0.2 keys mytest:*:h
+mytest:1002:h
+mytest:1001:h
++ docker run --network=test-hget-redis-network -e redisUrl=redis://:17YlGB2L1jQm95GnkClEZ4kAt72SulmV@172.20.0.2:6379 -e pattern=mytest:*:h -e field=err -e format=both evanxsummers/hget
+mytest:1002:h other_error
+mytest:1001:h some_error
++ docker ps -q -f name=test-redis-hget
++ docker rm -f 05a5bfe92ad8
+05a5bfe92ad8
++ docker network rm test-hget-redis-network
+test-hget-redis-network
